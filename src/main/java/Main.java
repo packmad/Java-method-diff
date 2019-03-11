@@ -1,4 +1,8 @@
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.HashSet;
 
 public class Main {
@@ -10,7 +14,7 @@ public class Main {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws FileNotFoundException {
 
         if (args.length != 2) {
             System.err.println("Two args needed");
@@ -22,7 +26,12 @@ public class Main {
         checkExist(src1);
         checkExist(src2);
 
-        HashSet<String> changedMethods = MethodDiff.methodDiffInClass(src1.toString(), src2.toString());
-        changedMethods.forEach(System.out::println);
+        CmpJavaSrc cmpJavaSrc = new CmpJavaSrc(src1, src2);
+        cmpJavaSrc.compare();
+
+        Result result = cmpJavaSrc.getResult();
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        String json = gson.toJson(result);
+        System.out.println(json);
     }
 }
