@@ -1,22 +1,17 @@
-import com.github.javaparser.JavaParser;
 import com.github.javaparser.StaticJavaParser;
-import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.Node;
-import com.github.javaparser.ast.PackageDeclaration;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.ConstructorDeclaration;
-import com.github.javaparser.ast.body.FieldDeclaration;
-import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.*;
+import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.stmt.BlockStmt;
-import jdk.nashorn.internal.ir.Block;
+import com.github.javaparser.ast.type.TypeParameter;
+import result.Result;
+import result.ResultClass;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.LinkedList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class CmpJavaSrc {
@@ -25,6 +20,8 @@ public class CmpJavaSrc {
 
     private List<ClassOrInterfaceDeclaration> classes1;
     private List<ClassOrInterfaceDeclaration> classes2;
+
+     private Set<String> imports;
 
     private String currentClass;
     private String packageName;
@@ -45,18 +42,32 @@ public class CmpJavaSrc {
         }
 
         if (pd1 != null && pd2 != null) {
-            packageName = pd1.toString().replace("package ", "").replace(";", "").replaceAll("\n", "");
+            String pack1 = pd1.toString().replace("package ", "").replace(";", "").replaceAll("\n", "");
+            String pack2 = pd2.toString().replace("package ", "").replace(";", "").replaceAll("\n", "");
+            if (pack1.equals(pack2)) {
+                packageName = pack1;
+            }
+            else throw new UnsupportedOperationException();
         }
         this.mainClassFqdn = null;
 
         this.classes1 = new ArrayList<>();
         this.classes2 = new ArrayList<>();
-
         getClasses(cu1, classes1);
         getClasses(cu2, classes2);
 
+
+        imports = new HashSet<>();
+        for (ImportDeclaration i : cu1.getImports()) {
+            imports.add(i.getName().toString());
+        }
+        for (ImportDeclaration i : cu2.getImports()) {
+            imports.add(i.getName().toString());
+        }
+
         result = new Result();
     }
+
 
     private static void getClasses(Node n, List<ClassOrInterfaceDeclaration> classesList) {
         for (Node child : n.getChildNodes()) {
@@ -68,6 +79,7 @@ public class CmpJavaSrc {
         }
     }
 
+    /*
     private void diffListString(List<String> strs1, List<String> strs2, List<String> res) {
         for (String s1 : strs1) {
             boolean found = false;
@@ -79,6 +91,130 @@ public class CmpJavaSrc {
             }
         }
     }
+    */
+
+    private void diffConstructors(List<ConstructorDeclaration> cdl1, List<ConstructorDeclaration> cdl2, List<String> res) {
+        for (ConstructorDeclaration cd1: cdl1) {
+            String md1str = cd1.getDeclarationAsString(true, true, false);
+            boolean found = false;
+            for (ConstructorDeclaration cd2: cdl2) {
+                String md2str = cd2.getDeclarationAsString(true, true, false);
+                found |= md1str.equals(md2str);
+            }
+            if (!found) {
+                res.add(java2DalvikConstructor(currentClass, cd1));
+            }
+        }
+    }
+
+    private void diffMethods(List<MethodDeclaration> mdl1, List<MethodDeclaration> mdl2, List<String> res) {
+        for (MethodDeclaration md1: mdl1) {
+            String md1str = md1.getDeclarationAsString(true, true, false);
+            boolean found = false;
+            for (MethodDeclaration md2: mdl2) {
+                String md2str = md2.getDeclarationAsString(true, true, false);
+                found |= md1str.equals(md2str);
+            }
+            if (!found) {
+                res.add(java2DalvikMethod(currentClass, md1));
+            }
+        }
+    }
+
+
+    private String java2dalvikClass(String clazz) {
+        for (String i : imports) {
+            String[] parts = i.split("\\.");
+            String s = parts[parts.length - 1];
+            if (s.equals(clazz)) {
+                clazz = i;
+                break;
+            }
+        }
+        return String.format("L%s;", clazz.replaceAll("\\.", "/"));
+    }
+
+
+    private void java2dalvikModifiers(StringBuilder sb, NodeList<Modifier> modifiers, boolean isInit) {
+        sb.append(" [access_flags=");
+        if (modifiers.size() > 0) {
+            for (Modifier m : modifiers) {
+                sb.append(m.toString().replaceAll(" ", ""));
+                sb.append(' ');
+            }
+            sb.setLength(sb.length() - 1);
+        }
+        if (isInit) {
+            sb.append("constructor");
+        }
+        sb.append(']');
+    }
+
+
+    private String java2dalvikField(String clazz, FieldDeclaration fd) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(java2dalvikClass(clazz));
+        sb.append("->");
+        sb.append(fd.getVariables().get(0).getName());
+        sb.append(' ');
+        sb.append(java2dalvikType(fd.getCommonType().asString()));
+        java2dalvikModifiers(sb, fd.getModifiers(), false);
+        return sb.toString();
+    }
+
+
+    private String java2dalvikType(String type) {
+        switch (type) {
+            case "boolean":
+                return "Z";
+            case "byte":
+                return "B";
+            case "short":
+                return "S";
+            case "char":
+                return "C";
+            case "int":
+                return "I";
+            case "long":
+                return "J";
+            case "float":
+                return "F";
+            case "double":
+                return "D";
+            case "void":
+                return "V";
+        }
+        return java2dalvikClass(type);
+    }
+
+    private String java2DalvikMethod(String clazz, MethodDeclaration md) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(java2dalvikClass(clazz));
+        sb.append("->");
+        sb.append(md.getName().asString());
+        sb.append('(');
+        for (Parameter p : md.getParameters()) {
+            sb.append(java2dalvikType(p.getType().asString()));
+        }
+        sb.append(')');
+        sb.append(java2dalvikType(md.getType().asString()));
+        java2dalvikModifiers(sb, md.getModifiers(), false);
+        return sb.toString();
+    }
+
+
+    private String java2DalvikConstructor(String clazz, ConstructorDeclaration cd) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(java2dalvikClass(clazz));
+        sb.append("-><init>");
+        for (Parameter p : cd.getParameters()) {
+            sb.append(java2dalvikType(p.getType().asString()));
+        }
+        sb.append(")V");
+        java2dalvikModifiers(sb, cd.getModifiers(), true);
+        return sb.toString();
+    }
+
 
     private void diffFields(List<FieldDeclaration> fields1, List<FieldDeclaration> fields2, List<String> res) {
         for (FieldDeclaration fd1 : fields1) {
@@ -88,7 +224,7 @@ public class CmpJavaSrc {
                 found |= fd1str.equals(fd2.toString());
             }
             if (!found) {
-                res.add(String.format("%s %s", currentClass, fd1.getVariables().get(0).getName()));
+                res.add(java2dalvikField(currentClass, fd1));
             }
         }
     }
@@ -98,14 +234,15 @@ public class CmpJavaSrc {
         for (MethodDeclaration md1 : methods1) {
             BlockStmt body1 = md1.getBody().orElse(null);
             if (body1 == null) continue;
-            String md1str =  md1.getDeclarationAsString(true, true, true);
+            String md1str =  md1.getDeclarationAsString(true, true, false);
             for (MethodDeclaration md2 : methods2) {
                 BlockStmt body2 = md2.getBody().orElse(null);
                 if (body2 == null) continue;
-                String md2str = md2.getDeclarationAsString(true, true, true);
+                String md2str = md2.getDeclarationAsString(true, true, false);
                 if (md1str.equals(md2str)) {
                     if (!body1.toString().equals(body2.toString())) {
-                        res.add(String.format("!!! %s %s", currentClass, md1str));
+                        //res.add(String.format("%s %s ~ %s", currentClass, md1str, java2DalvikMethod(currentClass, md1)));
+                        res.add(java2DalvikMethod(currentClass, md1));
                     }
                 }
             }
@@ -113,16 +250,18 @@ public class CmpJavaSrc {
 
     }
 
-     private void cmpConstructors(List<ConstructorDeclaration> constructors1, List<ConstructorDeclaration> constructors2, List<String> res) {
+
+    private void cmpConstructors(List<ConstructorDeclaration> constructors1, List<ConstructorDeclaration> constructors2, List<String> res) {
         for (ConstructorDeclaration md1 : constructors1) {
             BlockStmt body1 = md1.getBody();
-            String md1str =  md1.getDeclarationAsString(true, true, true);
+            String md1str =  md1.getDeclarationAsString(true, true, false);
             for (ConstructorDeclaration md2 : constructors2) {
                 BlockStmt body2 = md2.getBody();
-                String md2str = md2.getDeclarationAsString(true, true, true);
+                String md2str = md2.getDeclarationAsString(true, true, false);
                 if (md1str.equals(md2str)) {
                     if (!body1.toString().equals(body2.toString())) {
-                        res.add(String.format("!!! %s %s", currentClass, md1str));
+                        //res.add(String.format("%s %s", currentClass, md1str));
+                        res.add(java2DalvikConstructor(currentClass, md1));
                     }
                 }
             }
@@ -150,51 +289,44 @@ public class CmpJavaSrc {
         return null;
     }
 
-    private void cmpClasses(ClassOrInterfaceDeclaration c1, ClassOrInterfaceDeclaration c2) {
+
+    private ResultClass cmpClasses(ClassOrInterfaceDeclaration c1, ClassOrInterfaceDeclaration c2) {
         String c1fqdn = getFqdnClassname(c1);
         assert c1fqdn.equals(getFqdnClassname(c2));
         currentClass = c1fqdn;
+        ResultClass resultClass = new ResultClass();
+        resultClass.setPackageClassname(java2dalvikClass(c1fqdn));
 
-        diffFields(c1.getFields(), c2.getFields(), result.getFieldsRemoved());
-        diffFields(c2.getFields(), c1.getFields(), result.getFieldsAdded());
+        diffFields(c1.getFields(), c2.getFields(), resultClass.getFieldsRemoved());
+        diffFields(c2.getFields(), c1.getFields(), resultClass.getFieldsAdded());
 
-        List<String> methods1 = c1.getMethods().stream()
-                .map(m -> m.getDeclarationAsString(true, true, true))
-                .collect(Collectors.toList());
-        List<String> methods2 = c2.getMethods().stream()
-                .map(m -> m.getDeclarationAsString(true, true, true))
-                .collect(Collectors.toList());
-        diffListString(methods1, methods2, result.getMethodsRemoved());
-        diffListString(methods2, methods1, result.getMethodsAdded());
+        diffMethods(c1.getMethods(), c2.getMethods(), resultClass.getMethodsRemoved());
+        diffMethods(c2.getMethods(), c1.getMethods(), resultClass.getMethodsAdded());
 
+        if (c1.isInterface()) return resultClass;
 
-        if (c1.isInterface()) return;
+        diffConstructors(c1.getConstructors(), c2.getConstructors(), resultClass.getMethodsRemoved());
+        diffConstructors(c2.getConstructors(), c1.getConstructors(), resultClass.getMethodsAdded());
 
-        List<String> constrs1 = c1.getConstructors().stream()
-                .map(m -> m.getDeclarationAsString(true, true, true))
-                .collect(Collectors.toList());
-        List<String> constrs2 = c2.getConstructors().stream()
-                .map(m -> m.getDeclarationAsString(true, true, true))
-                .collect(Collectors.toList());
-        diffListString(constrs1, constrs2, result.getMethodsRemoved());
-        diffListString(constrs2, constrs1, result.getMethodsRemoved());
+        cmpConstructors(c1.getConstructors(), c2.getConstructors(), resultClass.getMethodsEdited());
 
-        cmpConstructors(c1.getConstructors(), c2.getConstructors(), result.getMethodsEdited());
-
-        cmpMethods(c1.getMethods(), c2.getMethods(), result.getMethodsEdited());
-
+        cmpMethods(c1.getMethods(), c2.getMethods(), resultClass.getMethodsEdited());
+        return resultClass;
     }
 
-    public void compare() {
+
+    public CmpJavaSrc compare() {
         for(ClassOrInterfaceDeclaration c1 : classes1) {
             String c1fqdn = getFqdnClassname(c1);
             for (ClassOrInterfaceDeclaration c2: classes2) {
                 String c2fqdn = getFqdnClassname(c2);
                 if (c1fqdn.equals(c2fqdn)) {
-                    cmpClasses(c1, c2);
+                    ResultClass rc = cmpClasses(c1, c2);
+                    this.result.getResultClasses().add(rc);
                 }
             }
         }
+        return this;
     }
 
 }

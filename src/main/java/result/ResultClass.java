@@ -1,8 +1,9 @@
-import java.lang.invoke.MethodHandle;
+package result;
+
 import java.util.ArrayList;
 import java.util.List;
 
-public class Result {
+public class ResultClass {
 
     private List<String> methodsRemoved;
     private List<String> methodsAdded;
@@ -11,7 +12,9 @@ public class Result {
     private List<String> fieldsRemoved;
     private List<String> fieldsAdded;
 
-    public Result() {
+    private String packageClassname;
+
+    public ResultClass() {
         methodsRemoved = new ArrayList<>();
         methodsAdded = new ArrayList<>();
         methodsEdited = new ArrayList<>();
@@ -58,5 +61,13 @@ public class Result {
 
     public void setFieldsAdded(List<String> fieldsAdded) {
         this.fieldsAdded = fieldsAdded;
+    }
+
+    public String getPackageClassname() {
+        return packageClassname;
+    }
+
+    public void setPackageClassname(String packageClassname) {
+        this.packageClassname = packageClassname;
     }
 }

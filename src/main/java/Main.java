@@ -1,9 +1,9 @@
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import result.Result;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.HashSet;
 
 public class Main {
 
