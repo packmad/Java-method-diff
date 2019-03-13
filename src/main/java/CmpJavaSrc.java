@@ -199,13 +199,11 @@ public class CmpJavaSrc {
         sb.append(')');
         sb.append(java2dalvikType(md.getType().asString()));
 
-        Node pn = md.getParentNode().orElse(null);
-        if (pn != null && pn instanceof ClassOrInterfaceDeclaration) {
-            ClassOrInterfaceDeclaration cid = ((ClassOrInterfaceDeclaration) pn);
-            if (cid.isInterface()) {
-                sb.append(" [access_flags=public abstract]");
-            }
-        } else {
+        ClassOrInterfaceDeclaration cid = ((ClassOrInterfaceDeclaration) md.getParentNode().orElse(null));
+        if (cid != null && cid.isInterface()) {
+            sb.append(" [access_flags=public abstract]");
+        }
+        else {
             java2dalvikModifiers(sb, md.getModifiers(), false);
         }
         return sb.toString();
