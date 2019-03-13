@@ -16,9 +16,14 @@ public class Main {
 
     public static void main(String[] args) throws FileNotFoundException {
 
-        if (args.length != 2) {
-            System.err.println("Two args needed");
+        if (args.length != 3) {
+            System.err.println("Three args needed: file1, file2, prettyprint=1|0");
             System.exit(-1);
+        }
+
+        int ppprint = Integer.parseInt(args[2]);
+        if (ppprint != 1 && ppprint !=0) {
+            throw new IllegalArgumentException("prettyprint 1 or 0");
         }
 
         File src1 = new File(args[0]);
@@ -30,7 +35,11 @@ public class Main {
         cmpJavaSrc.compare();
 
         Result result = cmpJavaSrc.getResult();
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
+        Gson gson;
+        if (ppprint == 1) gson = new GsonBuilder().setPrettyPrinting().create();
+        else gson = new GsonBuilder().create();
+
         String json = gson.toJson(result);
         System.out.println(json);
     }
