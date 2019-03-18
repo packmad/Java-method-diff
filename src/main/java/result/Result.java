@@ -1,24 +1,36 @@
 package result;
 
-import com.github.javaparser.ast.ImportDeclaration;
-import com.github.javaparser.ast.NodeList;
-
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class Result {
 
-    private List<ResultClass> resultClasses;
-    public List<ResultClass> getResultClasses() { return resultClasses; }
-    public void setResultClasses(List<ResultClass> resultClasses) { this.resultClasses = resultClasses; }
+    private String cve;
+    private String date;
+    private List<ResultClass> diff;
+    public List<ResultClass> getDiff() { return diff; }
+    public void setDiff(List<ResultClass> diff) { this.diff = diff; }
 
 
     public Result() {
-        resultClasses = new ArrayList<>();
+        diff = new ArrayList<>();
     }
 
+    public void setCve(String cve) {
+        this.cve = cve;
+    }
 
-    public void convertToDalvik() {}
+    public void setDate(String date) {
+        this.date = date;
+    }
+
+    public Result prune() {
+        diff.removeIf(rc ->
+                rc.getMethodsAdded().size()==0 &&
+                rc.getMethodsEdited().size()==0 &&
+                rc.getMethodsRemoved().size()==0 &&
+                rc.getFieldsAdded().size()==0 &&
+                rc.getFieldsRemoved().size()==0);
+        return this;
+    }
 }

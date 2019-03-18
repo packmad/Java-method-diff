@@ -4,13 +4,31 @@ import result.Result;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.nio.file.Path;
+import java.util.Iterator;
 
 public class Main {
+    private static String cve;
+    private static String date;
 
     private static void checkExist(File file) {
         if (!file.exists()) {
             System.err.println(String.format("File '%s' does not exist!", file.toString()));
             System.exit(-1);
+        }
+    }
+
+    private static void checkSetCveDate(File f1, File f2) {
+        for (Path path : f1.toPath()) {
+            String ps = path.toString();
+            if (ps.contains("-")) {
+                if (ps.startsWith("20")) {
+                    date = ps;
+                }
+                if (ps.startsWith("CVE-")) {
+                    cve = ps;
+                }
+            }
         }
     }
 
@@ -30,11 +48,14 @@ public class Main {
         File src2 = new File(args[2]);
         checkExist(src1);
         checkExist(src2);
+        checkSetCveDate(src1, src2);
 
         CmpJavaSrc cmpJavaSrc = new CmpJavaSrc(src1, src2);
         cmpJavaSrc.compare();
 
-        Result result = cmpJavaSrc.getResult();
+        Result result = cmpJavaSrc.getResult().prune();
+        result.setCve(cve);
+        result.setDate(date);
 
         Gson gson;
         if (ppprint == 1) gson = new GsonBuilder().setPrettyPrinting().create();

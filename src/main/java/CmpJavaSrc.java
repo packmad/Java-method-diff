@@ -2,7 +2,6 @@ import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.*;
 import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.stmt.BlockStmt;
-import com.github.javaparser.ast.type.TypeParameter;
 import result.Result;
 import result.ResultClass;
 
@@ -12,7 +11,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class CmpJavaSrc {
     private CompilationUnit cu1;
@@ -347,7 +345,7 @@ public class CmpJavaSrc {
                 String c2fqdn = getFqdnClassname(c2);
                 if (c1fqdn.equals(c2fqdn)) {
                     ResultClass rc = cmpClasses(c1, c2);
-                    this.result.getResultClasses().add(rc);
+                    this.result.getDiff().add(rc);
                 }
             }
         }
