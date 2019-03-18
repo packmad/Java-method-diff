@@ -121,17 +121,35 @@ public class CmpJavaSrc {
         }
     }
 
-
     private String java2dalvikClass(String clazz) {
+        return String.format("L%s;", clazz.replaceAll("\\.", "/"));
+    }
+
+    private String java2dalvikClassWithImports(String clazz) {
+        if (clazz.contains(".")) {
+            return java2dalvikClass(clazz);
+        }
+        String impClass = null;
         for (String i : imports) {
             String[] parts = i.split("\\.");
             String s = parts[parts.length - 1];
             if (s.equals(clazz)) {
-                clazz = i;
+                impClass = i;
                 break;
             }
         }
-        return String.format("L%s;", clazz.replaceAll("\\.", "/"));
+        if (impClass == null) {
+            for (String i : imports) {
+                int pos = i.indexOf(clazz);
+                if (pos > 0) {
+                   impClass = String.format("%s$%s", i.substring(0, pos-1), clazz);
+                }
+            }
+        }
+        if (impClass == null) {
+            impClass = String.format("%s.%s", packageName, clazz);
+        }
+        return java2dalvikClass(impClass);
     }
 
 
@@ -153,7 +171,7 @@ public class CmpJavaSrc {
 
     private String java2dalvikField(String clazz, FieldDeclaration fd) {
         StringBuilder sb = new StringBuilder();
-        sb.append(java2dalvikClass(clazz));
+        sb.append(java2dalvikClassWithImports(clazz));
         sb.append("->");
         sb.append(fd.getVariables().get(0).getName());
         sb.append(' ');
@@ -184,12 +202,12 @@ public class CmpJavaSrc {
             case "void":
                 return "V";
         }
-        return java2dalvikClass(type);
+        return java2dalvikClassWithImports(type);
     }
 
     private String java2DalvikMethod(String clazz, MethodDeclaration md) {
         StringBuilder sb = new StringBuilder();
-        sb.append(java2dalvikClass(clazz));
+        sb.append(java2dalvikClassWithImports(clazz));
         sb.append("->");
         sb.append(md.getName().asString());
         sb.append('(');
@@ -212,7 +230,7 @@ public class CmpJavaSrc {
 
     private String java2DalvikConstructor(String clazz, ConstructorDeclaration cd) {
         StringBuilder sb = new StringBuilder();
-        sb.append(java2dalvikClass(clazz));
+        sb.append(java2dalvikClassWithImports(clazz));
         sb.append("-><init>");
         for (Parameter p : cd.getParameters()) {
             sb.append(java2dalvikType(p.getType().asString()));
