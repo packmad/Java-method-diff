@@ -7,10 +7,7 @@ import result.ResultClass;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class CmpJavaSrc {
     private CompilationUnit cu1;
@@ -127,6 +124,9 @@ public class CmpJavaSrc {
         if (clazz.contains(".")) {
             return java2dalvikClass(clazz);
         }
+        if (clazz.contains("<") && clazz.contains(">")) { // no generic, type erasure
+            clazz = clazz.split("<")[0];
+        }
         switch (clazz) {
             case "Boolean":
             case "Byte":
@@ -222,11 +222,7 @@ public class CmpJavaSrc {
         sb.append(java2dalvikClassWithImports(clazz));
         sb.append("->");
         sb.append(md.getName().asString());
-        sb.append('(');
-        for (Parameter p : md.getParameters()) {
-            sb.append(java2dalvikType(p.getType().asString()));
-        }
-        sb.append(')');
+        sb.append(paramBuilder(md.getParameters()));
         sb.append(java2dalvikType(md.getType().asString()));
 
         ClassOrInterfaceDeclaration cid = ((ClassOrInterfaceDeclaration) md.getParentNode().orElse(null));
@@ -239,15 +235,21 @@ public class CmpJavaSrc {
         return sb.toString();
     }
 
+    private String paramBuilder(NodeList<Parameter> parameters) {
+        StringJoiner sj = new StringJoiner(" ", "(", ")");
+        for (Parameter p : parameters) {
+            sj.add(java2dalvikType(p.getType().asString()));
+        }
+        return sj.toString();
+    }
+
 
     private String java2DalvikConstructor(String clazz, ConstructorDeclaration cd) {
         StringBuilder sb = new StringBuilder();
         sb.append(java2dalvikClassWithImports(clazz));
         sb.append("-><init>");
-        for (Parameter p : cd.getParameters()) {
-            sb.append(java2dalvikType(p.getType().asString()));
-        }
-        sb.append(")V");
+        sb.append(paramBuilder(cd.getParameters()));
+        sb.append('V');
         java2dalvikModifiers(sb, cd.getModifiers(), true);
         return sb.toString();
     }
