@@ -127,6 +127,20 @@ public class CmpJavaSrc {
         if (clazz.contains(".")) {
             return java2dalvikClass(clazz);
         }
+        switch (clazz) {
+            case "Boolean":
+            case "Byte":
+            case "Character":
+            case "Double":
+            case "Float":
+            case "Integer":
+            case "Long":
+            case "Number":
+            case "Short":
+            case "String":
+            case "Void":
+                return java2dalvikClass(String.format("java.lang.%s", clazz));
+        }
         String impClass = null;
         for (String i : imports) {
             String[] parts = i.split("\\.");
