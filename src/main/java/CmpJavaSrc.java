@@ -127,17 +127,35 @@ public class CmpJavaSrc {
         if (clazz.contains("<") && clazz.contains(">")) { // no generic, type erasure
             clazz = clazz.split("<")[0];
         }
-        switch (clazz) {
+        switch (clazz) { // java.lang
             case "Boolean":
             case "Byte":
             case "Character":
+            case "ClassLoader":
+            case "Compiler":
             case "Double":
             case "Float":
             case "Integer":
             case "Long":
+            case "Math":
             case "Number":
+            case "Object":
+            case "Package":
+            case "Process":
+            case "ProcessBuilder":
+            case "Runtime":
+            case "RuntimePermission":
+            case "SecurityManager":
             case "Short":
+            case "StackTraceElement":
+            case "StrictMath":
             case "String":
+            case "StringBuffer":
+            case "StringBuilder":
+            case "System":
+            case "Thread":
+            case "ThreadGroup":
+            case "Throwable":
             case "Void":
                 return java2dalvikClass(String.format("java.lang.%s", clazz));
         }
@@ -167,16 +185,16 @@ public class CmpJavaSrc {
 
     private void java2dalvikModifiers(StringBuilder sb, NodeList<Modifier> modifiers, boolean isInit) {
         sb.append(" [access_flags=");
+        StringJoiner sj = new StringJoiner(" ");
         if (modifiers.size() > 0) {
             for (Modifier m : modifiers) {
-                sb.append(m.toString().replaceAll(" ", ""));
-                sb.append(' ');
+                sj.add(m.toString().replaceAll(" ", ""));
             }
-            sb.setLength(sb.length() - 1);
         }
         if (isInit) {
-            sb.append("constructor");
+            sj.add("constructor");
         }
+        sb.append(sj.toString());
         sb.append(']');
     }
 
