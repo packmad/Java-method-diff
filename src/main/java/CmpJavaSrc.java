@@ -116,18 +116,49 @@ public class CmpJavaSrc {
         }
     }
 
-    private String java2dalvikClass(String clazz) {
+
+    private int countEndingBrackets(String s) {
+        int i, ret = 0;
+        char[] ca = s.toCharArray();
+        for(ret=0, i=ca.length-1; i >= 0; --i, ++ret) {
+            if(ca[i] != ']') break;
+        }
+        return ret;
+    }
+
+    private StringBuilder getDalvikBrackets(int c) {
+        StringBuilder sb = new StringBuilder();
+        for (int i=0; i < c; ++i) {
+            sb.append('[');
+        }
+        return sb;
+    }
+
+    private String java2dalvikClass(String clazz, int c) {
+        if (c > 0) {
+            clazz = clazz.replaceAll("[\\[|\\]]", "");
+            return String.format("%sL%s;", getDalvikBrackets(c).toString(), clazz.replaceAll("\\.", "/"));
+        }
         return String.format("L%s;", clazz.replaceAll("\\.", "/"));
     }
 
+    /*
+    private String java2dalvikClass(String clazz) {
+        int c = countEndingBrackets(clazz);
+
+    }*/
+
     private String java2dalvikClassWithImports(String clazz) {
+        int c = countEndingBrackets(clazz);
+        String clazzNoBra = clazz.replaceAll("[\\[|\\]]", "");
+
         if (clazz.contains(".")) {
-            return java2dalvikClass(clazz);
+            return java2dalvikClass(clazzNoBra, c);
         }
         if (clazz.contains("<") && clazz.contains(">")) { // no generic, type erasure
             clazz = clazz.split("<")[0];
         }
-        switch (clazz) { // java.lang
+        switch (clazzNoBra) { // java.lang
             case "Boolean":
             case "Byte":
             case "Character":
@@ -157,29 +188,29 @@ public class CmpJavaSrc {
             case "ThreadGroup":
             case "Throwable":
             case "Void":
-                return java2dalvikClass(String.format("java.lang.%s", clazz));
+                return java2dalvikClass(String.format("java.lang.%s", clazzNoBra), c);
         }
         String impClass = null;
         for (String i : imports) {
             String[] parts = i.split("\\.");
             String s = parts[parts.length - 1];
-            if (s.equals(clazz)) {
+            if (s.equals(clazzNoBra)) {
                 impClass = i;
                 break;
             }
         }
         if (impClass == null) {
             for (String i : imports) {
-                int pos = i.indexOf(clazz);
+                int pos = i.indexOf(clazzNoBra);
                 if (pos > 0) {
-                   impClass = String.format("%s$%s", i.substring(0, pos-1), clazz);
+                   impClass = String.format("%s$%s", i.substring(0, pos-1), clazzNoBra);
                 }
             }
         }
         if (impClass == null) {
-            impClass = String.format("%s.%s", packageName, clazz);
+            impClass = String.format("%s.%s", packageName, clazzNoBra);
         }
-        return java2dalvikClass(impClass);
+        return java2dalvikClass(impClass, c);
     }
 
 
@@ -212,27 +243,47 @@ public class CmpJavaSrc {
 
 
     private String java2dalvikType(String type) {
+        String typeWithBra = type;
+        int c = countEndingBrackets(type);
+        if (c > 0) {
+            type = type.replaceAll("[\\[|\\]]", "");
+        }
         switch (type) {
             case "boolean":
-                return "Z";
+                type = "Z";
+                break;
             case "byte":
-                return "B";
+                type = "B";
+                break;
             case "short":
-                return "S";
+                type = "S";
+                break;
             case "char":
-                return "C";
+                type = "C";
+                break;
             case "int":
-                return "I";
+                type = "I";
+                break;
             case "long":
-                return "J";
+                type = "J";
+                break;
             case "float":
-                return "F";
+                type = "F";
+                break;
             case "double":
-                return "D";
+                type = "D";
+                break;
             case "void":
-                return "V";
+                type = "V";
+                break;
         }
-        return java2dalvikClassWithImports(type);
+        if (type.length() == 1) {
+            if (c > 0) {
+                return getDalvikBrackets(c).append(type).toString();
+            }
+            return type;
+        }
+        return java2dalvikClassWithImports(typeWithBra);
     }
 
     private String java2DalvikMethod(String clazz, MethodDeclaration md) {
@@ -352,7 +403,7 @@ public class CmpJavaSrc {
         assert c1fqdn.equals(getFqdnClassname(c2));
         currentClass = c1fqdn;
         ResultClass resultClass = new ResultClass();
-        resultClass.setPackageClassname(java2dalvikClass(c1fqdn));
+        resultClass.setPackageClassname(java2dalvikClass(c1fqdn, 0));
 
         diffFields(c1.getFields(), c2.getFields(), resultClass.getFieldsRemoved());
         diffFields(c2.getFields(), c1.getFields(), resultClass.getFieldsAdded());
@@ -366,8 +417,8 @@ public class CmpJavaSrc {
         diffConstructors(c2.getConstructors(), c1.getConstructors(), resultClass.getMethodsAdded());
 
         cmpConstructors(c1.getConstructors(), c2.getConstructors(), resultClass.getMethodsEdited());
-
         cmpMethods(c1.getMethods(), c2.getMethods(), resultClass.getMethodsEdited());
+
         return resultClass;
     }
 
