@@ -32,7 +32,7 @@ public class Main {
         }
     }
 
-    public static void main(String[] args) throws FileNotFoundException {
+    public static void main(String[] args) throws Exception {
 
         if (args.length != 3) {
             System.err.println("Three args needed: prettyprint=1|0, file1, file2");

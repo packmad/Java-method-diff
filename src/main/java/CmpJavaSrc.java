@@ -20,12 +20,12 @@ public class CmpJavaSrc {
 
     private String currentClass;
     private String packageName;
-    private String mainClassFqdn;
+    private String mainClassName;
 
     private Result result; public Result getResult() { return result; }
 
 
-    public CmpJavaSrc(File source1, File source2) throws FileNotFoundException {
+    public CmpJavaSrc(File source1, File source2) throws FileNotFoundException, RuntimeException {
         this.cu1 = StaticJavaParser.parse(source1);
         this.cu2 = StaticJavaParser.parse(source2);
 
@@ -44,13 +44,16 @@ public class CmpJavaSrc {
             }
             else throw new UnsupportedOperationException();
         }
-        this.mainClassFqdn = null;
 
         this.classes1 = new ArrayList<>();
         this.classes2 = new ArrayList<>();
         getClasses(cu1, classes1);
         getClasses(cu2, classes2);
 
+        String mainClass1 = classes1.get(0).getName().toString();
+        String mainClass2 = classes2.get(0).getName().toString();
+        assert mainClass1.equals(mainClass2);
+        this.mainClassName = mainClass1;
 
         imports = new HashSet<>();
         for (ImportDeclaration i : cu1.getImports()) {
@@ -148,15 +151,35 @@ public class CmpJavaSrc {
 
     }*/
 
+    private static boolean isSubclass(String clsName, List<ClassOrInterfaceDeclaration> classes) {
+        for (ClassOrInterfaceDeclaration coi : classes) {
+            if (coi.getName().asString().equals(clsName)) {
+                Node n = coi.getParentNode().orElse(null);
+                return n instanceof ClassOrInterfaceDeclaration;
+            }
+        }
+        return false;
+    }
+
+
     private String java2dalvikClassWithImports(String clazz) {
+        if (clazz.contains("<") && clazz.contains(">")) { // no generic, type erasure
+            clazz = clazz.split("<")[0];
+        }
         int c = countEndingBrackets(clazz);
         String clazzNoBra = clazz.replaceAll("[\\[|\\]]", "");
 
-        if (clazz.contains(".")) {
+        long dots = clazz.chars().filter(ch -> ch =='.').count();
+        if (dots > 1) {
             return java2dalvikClass(clazzNoBra, c);
         }
-        if (clazz.contains("<") && clazz.contains(">")) { // no generic, type erasure
-            clazz = clazz.split("<")[0];
+        if (dots == 1) {
+            String[] s = clazz.split("\\.");
+            String i = getImportFromClass(s[0]);
+            if (i == null) {
+                return java2dalvikClass(String.format("%s$%s", packageName, s[1]), c);
+            }
+            return java2dalvikClass(String.format("%s$%s", i, s[1]), c);
         }
         switch (clazzNoBra) { // java.lang
             case "Boolean":
@@ -190,15 +213,11 @@ public class CmpJavaSrc {
             case "Void":
                 return java2dalvikClass(String.format("java.lang.%s", clazzNoBra), c);
         }
-        String impClass = null;
-        for (String i : imports) {
-            String[] parts = i.split("\\.");
-            String s = parts[parts.length - 1];
-            if (s.equals(clazzNoBra)) {
-                impClass = i;
-                break;
-            }
+        String impClass = getImportFromClass(clazzNoBra);
+        if (impClass == null && (isSubclass(clazzNoBra, classes1) || isSubclass(clazzNoBra, classes2))) {
+            impClass = String.format("%s.%s$%s", packageName, mainClassName, clazzNoBra);
         }
+        /*
         if (impClass == null) {
             for (String i : imports) {
                 int pos = i.indexOf(clazzNoBra);
@@ -206,13 +225,35 @@ public class CmpJavaSrc {
                    impClass = String.format("%s$%s", i.substring(0, pos-1), clazzNoBra);
                 }
             }
-        }
+        }*/
         if (impClass == null) {
-            impClass = String.format("%s.%s", packageName, clazzNoBra);
+            impClass = String.format("%s.%s", packageName, clazzNoBra); // class in same package
         }
         return java2dalvikClass(impClass, c);
     }
 
+
+    private String getImportFromClass(String clazzNoBra) {
+        String impClass = null;
+        for (String i : imports) {
+            String[] parts = i.split("\\.");
+            String s1 = parts[parts.length - 1];
+            String s2 = parts[parts.length - 2];
+            if (s1.equals(clazzNoBra)) {
+                impClass = i;
+                if (stringContainsUppercase(s2)) {
+                   impClass = impClass.replaceAll("\\."+clazzNoBra, "");
+                   impClass += "$" + clazzNoBra;
+                }
+                break;
+            }
+        }
+        return impClass;
+    }
+
+    private static boolean stringContainsUppercase(String text) {
+        return !text.equals(text.toLowerCase());
+    }
 
     private void java2dalvikModifiers(StringBuilder sb, NodeList<Modifier> modifiers, boolean isInit) {
         sb.append(" [access_flags=");
